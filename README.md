@@ -1,28 +1,14 @@
-# 📊 JustETF Index
+# 📊 JustETF Catalog
 
-App **Streamlit** che scrapa gli ETF europei da **JustETF.com**, scarica le loro quotazioni reali (Yahoo Finance), e valuta **portafogli equally weighted** come combinazioni di ETF selezionati.
+App **Streamlit** semplice che scarica il catalogo ETF da **JustETF.com**, estrae l'indice di riferimento dalla descrizione, e permette di esportare come CSV.
 
 ## Cosa fa
 
-1. **Scrapa il catalogo ETF da JustETF** — accede a [JustETF.com](https://justetf.com) (il piu grande repository europeo di dati sugli ETF) usando la libreria [druzsan/justetf-scraping](https://github.com/druzsan/justetf-scraping).
-
-2. **Filtra gli ETF** — per TER massima e regione/asset class.
-
-3. **Scarica le quotazioni reali** — daily closing price di ogni ETF da Yahoo Finance, le converte a serie mensile.
-
-4. **Valuta tutte le combinazioni EW** — come in [equally-weighted-index](https://github.com/madidos/equally-weighted-index), ma su ETF reali. Calcola rendimento annualizzato, volatilita e Sharpe-like per ogni combo.
-
-5. **Confronta col benchmark** — scegli un ETF (es. VWCE.DE = FTSE All-World) e visualizza il valore cumulato + rendimento rolling del tuo portafoglio vs il benchmark.
-
-## Metodologia
-
-**Equally weighted, non ribilanciato**: ogni ETF entra con lo stesso capitale, nessun ribilanciamento.
-
-```
-montante_t = media_etf( P_t / P_{t-months} )
-rendimento_ann = media(montante) ** (12/months) − 1
-volatilita = std(montante)
-```
+1. **Scrapa il catalogo ETF da JustETF.com** — usando la libreria [druzsan/justetf-scraping](https://github.com/druzsan/justetf-scraping).
+2. **Estrae l'indice di riferimento** — dalla descrizione di ogni ETF (MSCI WORLD, S&P 500, FTSE, Russell, ecc.).
+3. **Filtra per TER** — scegli il massimo commissione annuale.
+4. **Mostra una tabella** — con nome, ISIN, TER, indice di riferimento.
+5. **Scarica CSV** — esporta la lista filtrata come file CSV.
 
 ## Avvio locale
 
@@ -35,31 +21,28 @@ Oppure doppio clic su `start.bat` (Windows).
 
 ## Deploy su Streamlit Cloud
 
-1. Repo pubblico su GitHub: ✓
-2. Accedi a [share.streamlit.io](https://share.streamlit.io) con GitHub.
-3. "Create app" → Repository: `madidos/justetf-index`, Branch: `main`, Main file: `app.py`.
-4. Deploy (1-3 min).
+1. Accedi a [share.streamlit.io](https://share.streamlit.io) con GitHub.
+2. "Create app" → Repository: `madidos/justetf-index`, Branch: `main`, Main file: `app.py`.
+3. Deploy (1-2 min).
 
 ### Note
-- Il primo caricamento degli ETF da JustETF puo richiedere qualche minuto (dipende dalla rete). Poi vengono cachati per un'ora.
-- Il mapping ISIN → ticker Yahoo Finance è semplificato; in produzione usaremmo una lookup table esterna.
-- L'app scarica dati "grezzi" da yfinance (senza aggiustamenti per dividendi/split); per un'analisi rigorosa serve total-return adjustment.
+- **Primo caricamento lento**: il primo accesso scarica il catalogo completo da JustETF (qualche minuto). Poi viene cachato per 1 ora.
+- **Estrazione indice**: usa pattern regex per cercare MSCI, S&P, FTSE, Russell, ecc. nella descrizione. Se non trova niente, ritorna "N/A".
+- **CSV ordinato**: il download CSV è ordinato per TER crescente (commissioni piu basse in alto).
 
 ## Struttura
 
 | File | Ruolo |
 |------|-------|
-| `justetf.py` | Scraping e processing del catalogo ETF da JustETF.com |
-| `etf_analysis.py` | Logica EW: download yfinance, statistiche, combinazioni |
-| `app.py` | Interfaccia Streamlit |
-| `requirements.txt` | Dipendenze (streamlit, pandas, yfinance, justetf-scraping) |
+| `justetf.py` | Scraping e estrazione indice dalla descrizione |
+| `app.py` | Interfaccia Streamlit (carica, filtra, scarica CSV) |
+| `requirements.txt` | Dipendenze (streamlit, pandas, justetf-scraping) |
 | `start.bat` | Launcher Windows |
 | `.devcontainer/` | Config per GitHub Codespaces / Streamlit Cloud |
 
-## Crediti & legale
+## Crediti
 
 - **JustETF.com** — catalogo ETF europei
-- **Yahoo Finance** — quotazioni storiche
 - [druzsan/justetf-scraping](https://github.com/druzsan/justetf-scraping) — libreria scraping
 
-**Disclaimer**: app a scopo didattico/personale. Nessuna garanzia sui dati. Non è consulenza finanziaria.
+**Disclaimer**: app a scopo didattico/personale. Nessuna garanzia sui dati.

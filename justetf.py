@@ -4,17 +4,16 @@ justetf.py — Scraping e processamento degli ETF da JustETF.
 Cosa fa
 -------
 Scarica il catalogo degli ETF europei da JustETF.com usando la libreria
-justetf-scraping, estrae le info principali (nome, ISIN, TER, underlying index,
-asset class) e le trasforma in un DataFrame pandas pronto per l'analisi.
+justetf-scraping e estrae le info principali (nome, ISIN, TER, indice di
+riferimento dalla descrizione).
 
-JustETF è il principale repository europeo di dati sugli ETF: quotazioni reali,
-holdings, fee, valutazioni ecc. Questo modulo ne estrae il catalogo e lo allinea
-ai ticker Yahoo Finance quando possibile.
+JustETF è il principale repository europeo di dati sugli ETF.
 """
 
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 import pandas as pd
@@ -22,13 +21,11 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def load_justetf_overview(timeout: int = 30) -> Optional[pd.DataFrame]:
+def load_justetf_overview() -> Optional[pd.DataFrame]:
     """Scarica il catalogo degli ETF da JustETF.
 
-    Ritorna un DataFrame con colonne: name, isin, ter, type, region, ecc.
+    Ritorna un DataFrame con colonne: name, isin, ter, description, ecc.
     Se lo scraping fallisce, ritorna None e loga l'errore.
-
-    `timeout` = secondi di attesa per la connessione.
     """
     try:
         import justetf_scraping
@@ -46,7 +43,7 @@ def load_justetf_overview(timeout: int = 30) -> Optional[pd.DataFrame]:
     except ImportError:
         logger.error(
             "justetf-scraping non installato. "
-            "Installa con: pip install 'justetf-scraping[all]@git+https://github.com/druzsan/justetf-scraping.git'"
+            "Installa con: pip install 'justetf-scraping @ git+https://github.com/druzsan/justetf-scraping.git'"
         )
         return None
     except Exception as exc:  # noqa: BLE001
@@ -54,45 +51,63 @@ def load_justetf_overview(timeout: int = 30) -> Optional[pd.DataFrame]:
         return None
 
 
-def filter_etfs(
-    df: pd.DataFrame,
-    ter_max: Optional[float] = None,
-    region: Optional[str] = None,
-    asset_class: Optional[str] = None,
-) -> pd.DataFrame:
-    """Filtra il catalogo ETF per TER, regione, asset class."""
+def extract_index_from_description(desc: str) -> str:
+    """Estrae l'indice di riferimento dalla descrizione dell'ETF.
+
+    Cerca pattern comuni: "MSCI WORLD", "S&P 500", "FTSE", ecc.
+    Se non trova niente, ritorna "N/A".
+    """
+    if not isinstance(desc, str) or not desc:
+        return "N/A"
+
+    # Pattern comuni di indici
+    patterns = [
+        r"(MSCI\s+[\w\s]+(?:IMI|ESG)?)",
+        r"(S&P\s+\d+)",
+        r"(FTSE\s+[\w\s]+)",
+        r"(Russell\s+[\w\d]+)",
+        r"(Nikkei\s+\d+)",
+        r"(DAX|CAC|IBEX)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, desc, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+
+    # Se non trova pattern, prova a estrarre le parole chiave principali
+    # (probabilmente l'indice è menzionato all'inizio)
+    words = desc.split()
+    if len(words) >= 2:
+        first_two = " ".join(words[:2]).strip()
+        if any(keyword in first_two.upper() for keyword in ["MSCI", "S&P", "FTSE", "RUSSELL"]):
+            return first_two
+
+    return "N/A"
+
+
+def add_index_column(df: pd.DataFrame, desc_col: str = "description") -> pd.DataFrame:
+    """Aggiunge una colonna 'index' estraendo l'indice dalla descrizione."""
     result = df.copy()
-    if ter_max is not None:
-        result = result[result.get("ter", float("inf")) <= ter_max]
-    if region is not None:
-        result = result[result.get("region", "").str.contains(region, case=False, na=False)]
-    if asset_class is not None:
-        result = result[result.get("asset_class", "").str.contains(asset_class, case=False, na=False)]
+    if desc_col in result.columns:
+        result["index"] = result[desc_col].apply(extract_index_from_description)
+    else:
+        result["index"] = "N/A"
     return result
 
 
-def resolve_yahoo_ticker(isin: str) -> Optional[str]:
-    """Tenta di mappare un ISIN a un ticker Yahoo Finance.
+def prepare_export(df: pd.DataFrame) -> pd.DataFrame:
+    """Prepara il DataFrame per l'export CSV con le colonne principali."""
+    cols = []
+    for col in ["name", "isin", "ter", "index"]:
+        if col in df.columns:
+            cols.append(col)
 
-    Logica semplice: chiama yfinance e verifica se l'ISIN valida.
-    In un ambiente reale useresti una lookup table o un'API dedicata.
-    """
-    try:
-        import yfinance as yf
+    if not cols:
+        return df.copy()
 
-        # Prova come ticker diretto (alcuni ISIN funzionano su yfinance)
-        tick = yf.Ticker(isin)
-        hist = tick.history(period="1d")
-        if not hist.empty:
-            return isin
-    except Exception:  # noqa: BLE001
-        pass
-    return None
-
-
-def add_yahoo_tickers(df: pd.DataFrame, name_col: str = "name") -> pd.DataFrame:
-    """Prova a risolvere i ticker Yahoo Finance per ogni ETF (lento, usa una cache in produzione)."""
-    result = df.copy()
-    if "yahoo_ticker" not in result.columns:
-        result["yahoo_ticker"] = result.get("isin", "").apply(resolve_yahoo_ticker)
+    result = df[cols].copy()
+    # Ordina per TER crescente
+    if "ter" in result.columns:
+        result = result.sort_values("ter")
     return result
