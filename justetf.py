@@ -63,8 +63,9 @@ def extract_index_from_name(etf_name: str) -> str:
     - "S&P 500", "S&P 1000"
     - "FTSE 100", "FTSE All-World"
     - "Russell 2000"
+    - "Nasdaq 100", "Nasdaq 150"
     - "Nikkei 225"
-    - "DAX", "CAC", "IBEX"
+    - "DAX", "CAC 40", "IBEX 35", "Stoxx", ecc.
 
     Esempio:
         "iShares Core S&P 500 UCITS ETF USD (Acc)" → "S&P 500"
@@ -78,18 +79,22 @@ def extract_index_from_name(etf_name: str) -> str:
 
     # Pattern ordinati per specificità (piu specifici per primi)
     patterns = [
-        # MSCI varianti (con "IMI", "Small Cap", "ESG", ecc.)
-        r"(MSCI\s+(?:ACWI|World|USA|China|EM|EMERGING\s+MARKETS|EUROPE|JAPAN|AC|All.Country)[\w\s]*)",
-        # S&P
-        r"(S&P\s+\d+(?:\s+\w+)?)",
-        # FTSE
-        r"(FTSE\s+[\w\-\.]+)",
-        # Russell
-        r"(Russell\s+\d+(?:\s+\w+)?)",
+        # MSCI varianti (solo MSCI + parola principale, non UCITS/ETF/ecc.)
+        r"(MSCI\s+(?:ACWI|World|USA|China|EM|Emerging\s+Markets|Europe|Japan|AC\s+\w+))\b",
+        # S&P (numero seguito opzionalmente da parola)
+        r"(S&P\s+\d+)\b",
+        # FTSE (numero o parole successive)
+        r"(FTSE\s+(?:\d+|[\w\-]+))\b",
+        # Russell (numero)
+        r"(Russell\s+\d+)\b",
+        # Nasdaq
+        r"(Nasdaq\s+\d+)\b",
         # Nikkei
-        r"(Nikkei\s+\d+)",
+        r"(Nikkei\s+\d+)\b",
+        # Stoxx Europa
+        r"(Stoxx\s+(?:Europe\s+)?[\w\s]*)\b",
         # Indici europei principali
-        r"\b(DAX|CAC\s*40|IBEX\s*35|AEX|STOXX)\b",
+        r"\b(DAX|CAC\s+40|IBEX\s+35|AEX|OMX)\b",
     ]
 
     for pattern in patterns:
