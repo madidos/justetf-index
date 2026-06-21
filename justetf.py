@@ -103,7 +103,12 @@ def extract_index_from_name(etf_name: str) -> str:
             index = match.group(1).strip()
             # Normalizza spazi multipli
             index = " ".join(index.split())
-            return index
+
+            # Taglia tutto dopo "UCITS" (escludendo UCITS stesso)
+            if "UCITS" in index.upper():
+                index = index[:index.upper().find("UCITS")].strip()
+
+            return index if index else "N/A"
 
     return "N/A"
 
