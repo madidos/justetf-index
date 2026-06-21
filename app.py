@@ -10,8 +10,10 @@ Si apre nel browser su http://localhost:8501
 
 from __future__ import annotations
 
+import io
 import logging
 
+import pandas as pd
 import streamlit as st
 
 import justetf as je
@@ -131,15 +133,36 @@ with st.expander("📋 Legenda colonne"):
     """)
 
 # --------------------------------------------------------------------------- #
-# Download CSV
+# Download CSV & Excel
 # --------------------------------------------------------------------------- #
 st.divider()
-csv_export = je.prepare_export(etfs).to_csv(index=False)
+st.subheader("Scarica il catalogo")
 
-st.download_button(
-    label="💾 Scarica CSV (tutte le colonne)",
-    data=csv_export.encode("utf-8"),
-    file_name="justetf_catalog.csv",
-    mime="text/csv",
-    use_container_width=True,
-)
+export_df = je.prepare_export(etfs)
+
+# CSV
+csv_export = export_df.to_csv(index=False)
+
+# Excel
+excel_buffer = io.BytesIO()
+with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+    export_df.to_excel(writer, sheet_name="ETF Catalog", index=False)
+excel_buffer.seek(0)
+
+col1, col2 = st.columns(2)
+with col1:
+    st.download_button(
+        label="📄 CSV",
+        data=csv_export.encode("utf-8"),
+        file_name="justetf_catalog.csv",
+        mime="text/csv",
+        use_container_width=True,
+    )
+with col2:
+    st.download_button(
+        label="📊 Excel",
+        data=excel_buffer.getvalue(),
+        file_name="justetf_catalog.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
