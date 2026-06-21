@@ -47,10 +47,18 @@ def cached_justetf_overview():
 # --------------------------------------------------------------------------- #
 st.subheader("1 · Scarica il catalogo ETF")
 
-with st.spinner("Scarico il catalogo da JustETF.com…"):
-    etfs_raw = cached_justetf_overview()
+if st.button("▶️ Avvia il download da JustETF.com", type="primary"):
+    with st.spinner("Scarico il catalogo da JustETF.com… (questo puo richiedere un minuto)"):
+        etfs_raw = cached_justetf_overview()
+    st.session_state.etfs_raw = etfs_raw
+else:
+    etfs_raw = st.session_state.get("etfs_raw")
 
-if etfs_raw is None or etfs_raw.empty:
+if etfs_raw is None:
+    st.info("Clicca il bottone **Avvia** per scaricare il catalogo degli ETF da JustETF.com")
+    st.stop()
+
+if etfs_raw.empty:
     st.error(
         "❌ Impossibile scaricare il catalogo da JustETF. "
         "Verifica che `justetf-scraping` sia installato.\n\n"
