@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Dati / cache
+*.parquet
+*.pkl
+*.cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
