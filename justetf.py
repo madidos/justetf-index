@@ -4,10 +4,10 @@ justetf.py — Scraping e processamento degli ETF da JustETF.
 Cosa fa
 -------
 Scarica il catalogo degli ETF europei da JustETF.com usando la libreria
-justetf-scraping e estrae le info principali (nome, ISIN, TER, indice di
-riferimento dalla descrizione).
+justetf-scraping (4364+ ETF con 42 colonne di dati).
 
-JustETF è il principale repository europeo di dati sugli ETF.
+Estrae l'indice di riferimento dal NOME dell'ETF (non da una descrizione).
+Esempio: "iShares Core S&P 500 UCITS ETF USD (Acc)" → index = "S&P 500"
 """
 
 from __future__ import annotations
@@ -22,10 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 def load_justetf_overview() -> Optional[pd.DataFrame]:
-    """Scarica il catalogo degli ETF da JustETF.
+    """Scarica il catalogo degli ETF da JustETF (4364+ ETF, 42 colonne).
 
-    Ritorna un DataFrame con colonne: name, isin, ter, description, ecc.
-    Se lo scraping fallisce, ritorna None e loga l'errore.
+    Ritorna un DataFrame con:
+    - Identificatori: wkn, ticker, valor, name, isin (indice)
+    - Info: inception_date, age_in_years, strategy, domicile_country, currency, ter, ecc.
+    - Performance: rendimenti ultimi giorni/settimane/mesi/anni (last_week, last_year, ecc.)
+    - Volatilità: volatilità e max drawdown a 1/3/5 anni
+    - Return per risk: metriche di performance aggiustate per il rischio
     """
     try:
         import justetf_scraping
@@ -51,61 +55,76 @@ def load_justetf_overview() -> Optional[pd.DataFrame]:
         return None
 
 
-def extract_index_from_description(desc: str) -> str:
-    """Estrae l'indice di riferimento dalla descrizione dell'ETF.
+def extract_index_from_name(etf_name: str) -> str:
+    """Estrae l'indice di riferimento dal NOME dell'ETF.
 
-    Cerca pattern comuni: "MSCI WORLD", "S&P 500", "FTSE", ecc.
-    Se non trova niente, ritorna "N/A".
+    Cerca pattern comuni nel nome:
+    - "MSCI WORLD", "MSCI USA", "MSCI EMERGING MARKETS" (e varianti)
+    - "S&P 500", "S&P 1000"
+    - "FTSE 100", "FTSE All-World"
+    - "Russell 2000"
+    - "Nikkei 225"
+    - "DAX", "CAC", "IBEX"
+
+    Esempio:
+        "iShares Core S&P 500 UCITS ETF USD (Acc)" → "S&P 500"
+        "Vanguard FTSE All-World UCITS ETF" → "FTSE All-World"
+        "iShares MSCI WORLD UCITS ETF" → "MSCI WORLD"
+
+    Se non trova pattern, ritorna "N/A".
     """
-    if not isinstance(desc, str) or not desc:
+    if not isinstance(etf_name, str) or not etf_name:
         return "N/A"
 
-    # Pattern comuni di indici
+    # Pattern ordinati per specificità (piu specifici per primi)
     patterns = [
-        r"(MSCI\s+[\w\s]+(?:IMI|ESG)?)",
-        r"(S&P\s+\d+)",
-        r"(FTSE\s+[\w\s]+)",
-        r"(Russell\s+[\w\d]+)",
+        # MSCI varianti (con "IMI", "Small Cap", "ESG", ecc.)
+        r"(MSCI\s+(?:ACWI|World|USA|China|EM|EMERGING\s+MARKETS|EUROPE|JAPAN|AC|All.Country)[\w\s]*)",
+        # S&P
+        r"(S&P\s+\d+(?:\s+\w+)?)",
+        # FTSE
+        r"(FTSE\s+[\w\-\.]+)",
+        # Russell
+        r"(Russell\s+\d+(?:\s+\w+)?)",
+        # Nikkei
         r"(Nikkei\s+\d+)",
-        r"(DAX|CAC|IBEX)",
+        # Indici europei principali
+        r"\b(DAX|CAC\s*40|IBEX\s*35|AEX|STOXX)\b",
     ]
 
     for pattern in patterns:
-        match = re.search(pattern, desc, re.IGNORECASE)
+        match = re.search(pattern, etf_name, re.IGNORECASE)
         if match:
-            return match.group(1).strip()
-
-    # Se non trova pattern, prova a estrarre le parole chiave principali
-    # (probabilmente l'indice è menzionato all'inizio)
-    words = desc.split()
-    if len(words) >= 2:
-        first_two = " ".join(words[:2]).strip()
-        if any(keyword in first_two.upper() for keyword in ["MSCI", "S&P", "FTSE", "RUSSELL"]):
-            return first_two
+            index = match.group(1).strip()
+            # Normalizza spazi multipli
+            index = " ".join(index.split())
+            return index
 
     return "N/A"
 
 
-def add_index_column(df: pd.DataFrame, desc_col: str = "description") -> pd.DataFrame:
-    """Aggiunge una colonna 'index' estraendo l'indice dalla descrizione."""
+def add_index_column(df: pd.DataFrame, name_col: str = "name") -> pd.DataFrame:
+    """Aggiunge una colonna 'index' estraendo l'indice dal nome dell'ETF."""
     result = df.copy()
-    if desc_col in result.columns:
-        result["index"] = result[desc_col].apply(extract_index_from_description)
+    if name_col in result.columns:
+        result["index"] = result[name_col].apply(extract_index_from_name)
     else:
+        logger.warning(f"Colonna '{name_col}' non trovata. Creo colonna index con N/A")
         result["index"] = "N/A"
     return result
 
 
 def prepare_export(df: pd.DataFrame) -> pd.DataFrame:
-    """Prepara il DataFrame per l'export CSV con le colonne principali."""
-    # Ordine colonne: index all'inizio, poi name, isin, ter
-    cols = []
-    for col in ["index", "name", "isin", "ter"]:
-        if col in df.columns:
-            cols.append(col)
+    """Prepara il DataFrame per l'export CSV.
 
-    if not cols:
-        return df.copy()
+    Mette 'index' all'inizio, poi tutte le altre colonne in ordine.
+    """
+    result = df.copy()
 
-    result = df[cols].copy()
-    return result
+    # Se 'index' non c'è, creala
+    if "index" not in result.columns:
+        result = add_index_column(result)
+
+    # Riordina: index first, poi tutto il resto
+    cols = ["index"] + [c for c in result.columns if c != "index"]
+    return result[cols]

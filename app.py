@@ -72,33 +72,72 @@ if etfs_raw.empty:
     )
     st.stop()
 
-# Aggiungi la colonna indice
+# Aggiungi la colonna indice (estratto dal nome)
 etfs = je.add_index_column(etfs_raw)
-st.success(f"✓ Caricati {len(etfs)} ETF")
+st.success(f"Caricati {len(etfs)} ETF con 42 colonne di dati")
 
 # --------------------------------------------------------------------------- #
-# Mostra tabella completa
+# Mostra TUTTE le colonne
 # --------------------------------------------------------------------------- #
-# Riordina le colonne con index all'inizio
-cols_order = ["index", "name", "isin", "ter"]
-display_cols = [col for col in cols_order if col in etfs.columns]
+# Riordina: index all'inizio, poi tutte le altre
+all_cols = ["index"] + [c for c in etfs.columns if c != "index"]
+table = etfs[all_cols].reset_index(drop=True)
 
-if not display_cols:
-    st.error("Nessuna colonna disponibile.")
-    st.stop()
+st.info(f"📊 **Colonne:** {len(table.columns)} | **ETF:** {len(table)}")
 
-table = etfs[display_cols].reset_index(drop=True)
-st.dataframe(table, width="stretch", use_container_width=True, height=400)
+# Mostra in formato compatto (scrollabile)
+st.dataframe(table, width="stretch", use_container_width=True, height=500)
 
-st.caption(f"**Totale ETF:** {len(table)}")
+# --------------------------------------------------------------------------- #
+# Colonne disponibili (per info)
+# --------------------------------------------------------------------------- #
+with st.expander("📋 Legenda colonne"):
+    st.markdown("""
+**Identificatori:**
+- `index` — indice di riferimento (estratto dal nome dell'ETF)
+- `name` — nome completo dell'ETF
+- `wkn`, `ticker`, `valor`, `isin` — codici di identificazione
+
+**Info generali:**
+- `inception_date`, `age_in_days`, `age_in_years` — data e anzianità
+- `strategy` — Long-only, Short, Leveraged
+- `domicile_country` — paese di domicilio
+- `currency` — valuta (USD, EUR, GBP, ecc.)
+- `hedged` — se protetta da cambio
+- `securities_lending` — se fa prestito titoli
+- `dividends` — Accumulating o Distributing
+- `ter` — commissione annuale (%)
+- `replication` — Full o Sampling
+- `size` — AUM in milioni
+- `is_sustainable` — se è ESG
+- `number_of_holdings` — numero di titoli in portafoglio
+
+**Rendimenti (ultimi periodi):**
+- `yesterday`, `last_week`, `last_month`, `last_three_months`, `last_six_months`
+- `last_year`, `last_three_years`, `last_five_years`
+- `2025`, `2024`, `2023`, `2022` — rendimento anno per anno
+
+**Volatilità:**
+- `last_year_volatility`, `last_three_years_volatility`, `last_five_years_volatility`
+
+**Risk-adjusted returns:**
+- `last_year_return_per_risk`, `last_three_years_return_per_risk`, `last_five_years_return_per_risk`
+
+**Drawdown (perdite massime):**
+- `max_drawdown`, `last_year_max_drawdown`, `last_three_years_max_drawdown`, `last_five_years_max_drawdown`
+
+**Dividendi:**
+- `last_dividends`, `last_year_dividends` — ultimi dividendi staccati
+    """)
 
 # --------------------------------------------------------------------------- #
 # Download CSV
 # --------------------------------------------------------------------------- #
+st.divider()
 csv_export = je.prepare_export(etfs).to_csv(index=False)
 
 st.download_button(
-    label="💾 Scarica CSV",
+    label="💾 Scarica CSV (tutte le colonne)",
     data=csv_export.encode("utf-8"),
     file_name="justetf_catalog.csv",
     mime="text/csv",
