@@ -23,18 +23,25 @@ st.set_page_config(page_title="JustETF Catalog", page_icon="📊", layout="wide"
 st.title("📊 Catalogo ETF da JustETF")
 st.caption(
     "Scarica il catalogo completo degli ETF europei da JustETF.com, "
-    "con l'indice di riferimento estratto dalla descrizione. Esporta in CSV."
+    "con l'indice di riferimento estratto dalla descrizione."
 )
 
 # --------------------------------------------------------------------------- #
 # Sidebar
 # --------------------------------------------------------------------------- #
 with st.sidebar:
-    st.header("⚙️ Impostazioni")
-    ter_max = st.slider("TER massima (%)", 0.0, 2.0, 0.5, step=0.05,
-                        help="Filtra gli ETF per commissione annuale massima.")
-    st.divider()
-    st.caption("Dati: JustETF.com")
+    st.header("ℹ️ Informazioni")
+    st.markdown(
+        """
+**Colonne:**
+- **index** — indice di riferimento (estratto dalla descrizione)
+- **name** — nome dell'ETF
+- **isin** — codice ISIN
+- **ter** — commissione annuale (%)
+
+Dati aggiornati: JustETF.com
+        """
+    )
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
@@ -43,19 +50,17 @@ def cached_justetf_overview():
 
 
 # --------------------------------------------------------------------------- #
-# 1) Caricamento ETF da JustETF
+# Caricamento ETF da JustETF
 # --------------------------------------------------------------------------- #
-st.subheader("1 · Scarica il catalogo ETF")
-
-if st.button("▶️ Avvia il download da JustETF.com", type="primary"):
-    with st.spinner("Scarico il catalogo da JustETF.com… (questo puo richiedere un minuto)"):
+if st.button("▶️ Avvia il download da JustETF.com", type="primary", use_container_width=True):
+    with st.spinner("Scarico il catalogo da JustETF.com… (questo puo richiedere 1-2 minuti)"):
         etfs_raw = cached_justetf_overview()
     st.session_state.etfs_raw = etfs_raw
 else:
     etfs_raw = st.session_state.get("etfs_raw")
 
 if etfs_raw is None:
-    st.info("Clicca il bottone **Avvia** per scaricare il catalogo degli ETF da JustETF.com")
+    st.info("👆 Clicca il bottone per avviare il download del catalogo ETF da JustETF.com")
     st.stop()
 
 if etfs_raw.empty:
@@ -69,51 +74,33 @@ if etfs_raw.empty:
 
 # Aggiungi la colonna indice
 etfs = je.add_index_column(etfs_raw)
-st.success(f"✓ Caricati {len(etfs)} ETF.")
+st.success(f"✓ Caricati {len(etfs)} ETF")
 
 # --------------------------------------------------------------------------- #
-# 2) Filtraggio
+# Mostra tabella completa
 # --------------------------------------------------------------------------- #
-st.subheader("2 · Filtra e visualizza")
-
-if "ter" in etfs.columns:
-    etfs_filtered = etfs[etfs["ter"] <= ter_max / 100].copy()
-    st.caption(f"ETF con TER ≤ {ter_max}%: **{len(etfs_filtered)}**")
-else:
-    etfs_filtered = etfs.copy()
-    st.warning("Colonna 'ter' non trovata nel catalogo.")
-
-# --------------------------------------------------------------------------- #
-# 3) Mostra tabella con colonne principali
-# --------------------------------------------------------------------------- #
-st.subheader("3 · Tabella")
-
-# Prepara le colonne da mostrare
-display_cols = []
-for col in ["name", "isin", "ter", "index"]:
-    if col in etfs_filtered.columns:
-        display_cols.append(col)
+# Riordina le colonne con index all'inizio
+cols_order = ["index", "name", "isin", "ter"]
+display_cols = [col for col in cols_order if col in etfs.columns]
 
 if not display_cols:
-    st.error("Nessuna colonna disponibile per la visualizzazione.")
+    st.error("Nessuna colonna disponibile.")
     st.stop()
 
-table = etfs_filtered[display_cols].reset_index(drop=True)
-st.dataframe(table, width="stretch", use_container_width=True)
+table = etfs[display_cols].reset_index(drop=True)
+st.dataframe(table, width="stretch", use_container_width=True, height=400)
 
-st.caption(f"Totale righe: {len(table)}")
+st.caption(f"**Totale ETF:** {len(table)}")
 
 # --------------------------------------------------------------------------- #
-# 4) Download CSV
+# Download CSV
 # --------------------------------------------------------------------------- #
-st.subheader("4 · Scarica CSV")
-
-csv_export = je.prepare_export(etfs_filtered).to_csv(index=False)
+csv_export = je.prepare_export(etfs).to_csv(index=False)
 
 st.download_button(
     label="💾 Scarica CSV",
     data=csv_export.encode("utf-8"),
     file_name="justetf_catalog.csv",
     mime="text/csv",
-    help="Scarica la tabella filtrata come file CSV.",
+    use_container_width=True,
 )

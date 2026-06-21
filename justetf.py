@@ -98,8 +98,9 @@ def add_index_column(df: pd.DataFrame, desc_col: str = "description") -> pd.Data
 
 def prepare_export(df: pd.DataFrame) -> pd.DataFrame:
     """Prepara il DataFrame per l'export CSV con le colonne principali."""
+    # Ordine colonne: index all'inizio, poi name, isin, ter
     cols = []
-    for col in ["name", "isin", "ter", "index"]:
+    for col in ["index", "name", "isin", "ter"]:
         if col in df.columns:
             cols.append(col)
 
@@ -107,7 +108,4 @@ def prepare_export(df: pd.DataFrame) -> pd.DataFrame:
         return df.copy()
 
     result = df[cols].copy()
-    # Ordina per TER crescente
-    if "ter" in result.columns:
-        result = result.sort_values("ter")
     return result
